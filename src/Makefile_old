@@ -1,0 +1,70 @@
+# Дополнительные библиотеки не для Mac, по умолчанию оставляем пустым, чтобы не портить сборку на Mac
+LIBS_ADDITIONAL = 
+
+# Определяем ОС
+ifeq ($(OS), Windows_NT)
+    detected_OS := Windows
+else
+    detected_OS := $(shell uname -s)
+endif
+# Настраиваем переменные в зависимости от ОС
+ifeq ($(detected_OS), Linux)
+	detected_Linux := $(shell cat /etc/issue | sed -n '1p' | awk '{print $$1}')
+	ifeq ($(detected_Linux), Arch)
+	LIBS_ADDITIONAL = -lm
+	CMD_OPEN = xdg-open
+	endif
+
+	ifeq ($(detected_Linux), Ubuntu)
+	LIBS_ADDITIONAL = -lm -pthread -lsubunit -lrt
+	CMD_OPEN = xdg-open
+	endif
+	
+	ifeq ($(detected_Linux), Debian)
+	LIBS_ADDITIONAL = -lm -pthread -lsubunit -lrt
+	CMD_OPEN = xdg-open
+	endif
+endif
+
+# Набор цветов для красивостей
+GREEN = \033[0;32m
+RESET = \033[0m
+
+# Компилятор / Линковщик
+CC = g++
+CFLAGS = -Wall -Werror -Wextra -std=c++17
+# CDEBUG_FLAGS = -g -fsanitize=leak -fsanitize=address -fsanitize=undefined -fsanitize=unreachable -fno-sanitize-recover -fstack-protector
+
+# Пути до используемых папок
+TEST_SRCS=tests/*.cc
+
+all: clean test
+
+test:
+	@mkdir -p build
+	@echo "Начало компиляции..."
+	@$(CC) -DTEST_FLAGS $(CFLAGS) $(CDEBUG_FLAGS) $(TEST_SRCS) $(TEST_MAIN) $(TEST_FLAGS) -lgtest -o ./build/test --coverage 
+	@echo "Компиляция завршена"
+	@echo "$(GREEN)************************************************************************************************$(RESET)\c"
+	@echo "\n-------------------------------------------------------------------------------------------------\n"
+
+gcov_report: clean test
+	gcovr -r ./ --object-directory ./build --coverage --html --html-details -o build/coverage_report.html
+	open build/coverage_report.html
+
+clean:
+	@rm -rf bin build
+	@rm -rf *.gcno
+	@rm -rf *.gcda
+
+style:
+	cp ../materials/linters/.clang-format ./
+	find ./ -iname "*.h" -o -iname "*.cc" | xargs clang-format -n
+	@echo "$(GREEN)style check complete"
+
+valgrind: test
+	valgrind --tool=memcheck --leak-check=yes --track-origins=yes --leak-check=full ./bin/test
+
+rebuild: clean all
+
+.PHONY: all clean rebuild style
